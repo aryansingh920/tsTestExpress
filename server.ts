@@ -1,112 +1,76 @@
-import express, { Request, Response } from "express";
+import express, { Request, Response, NextFunction } from "express";
+import morgan from "morgan";
+import path from "path";
 import swaggerUi from "swagger-ui-express";
+import * as fs from "fs";
+import * as YAML from "yamljs";
 
 // Create Express app
 const app = express();
+
+// Read sample resource from file
+const sampleResource = JSON.parse(
+  fs.readFileSync("./sample-resource.json", "utf8")
+);
+
+// Create a write stream for logging
+const accessLogStream = fs.createWriteStream(
+  path.join(__dirname, "access.log"),
+  { flags: "a" }
+);
+
+// Use the morgan middleware for logging
+app.use(morgan("combined", { stream: accessLogStream }));
 
 // Define a route
 app.get("/", (req: Request, res: Response) => {
   res.send("Hello, World!");
 });
 
-// Define a sample GET route
-/**
- * @swagger
- * /api/sample:
- *   get:
- *     summary: Get a sample resource
- *     responses:
- *       200:
- *         description: Success message
- */
 app.get("/api/sample", (req: Request, res: Response) => {
-  res.send("Sample resource");
+  res.send(sampleResource.message);
 });
 
-// Define a sample POST route
-/**
- * @swagger
- * /api/sample:
- *   post:
- *     summary: Create a new sample resource
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               name:
- *                 type: string
- *             example:
- *               name: John Doe
- *     responses:
- *       200:
- *         description: Success message
- */
 app.post("/api/sample", (req: Request, res: Response) => {
   const { name } = req.body;
   res.send(`Created a new sample resource with name: ${name}`);
 });
 
-// Swagger specification object
-const swaggerSpec = {
-  openapi: "3.0.0",
-  info: {
-    title: "Express API with Swagger",
-    version: "1.0.0",
-    description: "A sample API using Express and Swagger",
-  },
-  servers: [
-    {
-      url: "http://localhost:3000",
-    },
-  ],
-  paths: {
-    "/api/sample": {
-      get: {
-        summary: "Get a sample resource",
-        responses: {
-          200: {
-            description: "Success message",
-          },
-        },
-      },
-      post: {
-        summary: "Create a new sample resource",
-        requestBody: {
-          required: true,
-          content: {
-            "application/json": {
-              schema: {
-                type: "object",
-                properties: {
-                  name: {
-                    type: "string",
-                  },
-                },
-                example: {
-                  name: "John Doe",
-                },
-              },
-            },
-          },
-        },
-        responses: {
-          200: {
-            description: "Success message",
-          },
-        },
-      },
-    },
-  },
-};
-
 // Serve Swagger API documentation
+const swaggerFile = fs.readFileSync("./swagger.yaml", "utf8");
+const swaggerSpec = YAML.parse(
+  swaggerFile.replace(
+    "<SAMPLE_RESOURCE>",
+    JSON.stringify(sampleResource.message)
+  )
+);
+
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+
+// Route to display access log
+app.get("/api/logs", (req: Request, res: Response) => {
+  fs.readFile(path.join(__dirname, "access.log"), "utf8", (err, data) => {
+    if (err) {
+      console.error(err);
+      res.status(500).send("Error reading log file");
+    } else {
+      res.send(data);
+    }
+  });
+});
+
+// Error handling middleware
+app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
+  // Log the error
+  console.error(err);
+  // Handle the error and send a response
+  res.status(500).send("Internal Server Error");
+});
 
 // Start the server
 const port = 3000 || process.env.PORT;
 app.listen(port, () => {
   console.log(`Server is listening on port ${port}`);
 });
+
+export default app;

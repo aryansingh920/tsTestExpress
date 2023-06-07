@@ -1,0 +1,13 @@
+{
+  "definitions": {
+    "SuccessMessage": {
+      "type": "object",
+      "properties": {
+        "message": {
+          "type": "string",
+          "example": "Success message"
+        }
+      }
+    }
+  }
+}
